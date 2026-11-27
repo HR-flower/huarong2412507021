@@ -1,136 +1,69 @@
-const Block = require('./Block.');
-const crypto = require('crypto');
+const Block = require("./Block");
 
 class Blockchain {
-    // 初始化一个新的区块链
     constructor() {
-        this.blockchain = [Block.genesis]; // 初始化区块链中的第一个区块
-        this.difficulty = 3; // 难度值，控制哈希的生成难度
+        this.difficulty = 3;
+        this.chain = [Block.genesis];
     }
 
-    // 获取区块链中的所有区块数组，[{0}, {1}, {2}, {3},……]
-    get() {
-        return this.blockchain;
-    }
-
-    // 获取区块链中最新的区块（整条链的最末端）
     getLatestBlock() {
-        return this.blockchain[this.blockchain.length - 1];
+        return this.chain[this.chain.length - 1];
     }
 
-    // 验证哈希值是否满足难度要求的函数
+    get latestBlock() {
+        return this.getLatestBlock();
+    }
+
     isValidHashDifficulty(hash) {
-        for (var i = 0; i < hash.length; i++) {
-            if (hash[i] !== '0') {
-                break;
-            }
-        }
-        return i >= this.difficulty;
+        return hash.startsWith("0".repeat(this.difficulty));
     }
 
-    // 为一个区块对象计算哈希值
-    calculateHashForBlock(block) {
-        const {
-            index,
-            previousHash,
-            timestamp,
-            data,
-            nonce
-        } = block;
-        return this.calculateHash(index, previousHash, timestamp, data, nonce);
-    }
-
-    //通用的计算哈希值函数的方法
     calculateHash(index, previousHash, timestamp, data, nonce) {
-        return crypto.createHash('sha256').update(index + previousHash + timestamp + data + nonce).digest('hex');
+        const crypto = require("crypto");
+        return crypto.createHash("sha256")
+            .update(index + previousHash + timestamp + data + nonce)
+            .digest("hex");
     }
 
-    //挖矿方法--创建新的区块并添加到区块链中
     mine(data) {
-        const newBlock = this.generateNextBlock(data);
-        try {
-            this.addBlock(newBlock);
-        } catch (error) {
-            throw error;
-        }
-    }
-
-    //生成下一个区块的方法---执行工作量证明（挖矿）
-    generateNextBlock(data) {
-        const nextIndex = this.getLatestBlock().index + 1;
-        const previousHash = this.getLatestBlock().hash;
-        let timestamp = new Date().getTime();
+        const prevBlock = this.getLatestBlock();
+        const index = prevBlock.index + 1;
+        let timestamp = Date.now();
         let nonce = 0;
-        let nextHash = this.calculateHash(nextIndex, previousHash, timestamp, data, nonce);
-        while (!this.isValidHashDifficulty(nextHash)) {
-            nonce = nonce + 1;
-            timestamp = new Date().getTime();
-            nextHash = this.calculateHash(nextIndex, previousHash, timestamp, data, nonce);
+        let hash = this.calculateHash(index, prevBlock.hash, timestamp, data, nonce);
+
+        while (!this.isValidHashDifficulty(hash)) {
+            nonce++;
+            timestamp = Date.now();
+            hash = this.calculateHash(index, prevBlock.hash, timestamp, data, nonce);
         }
-        const nextBlock = new Block(
-            nextIndex,
-            previousHash,
-            timestamp,
-            data,
-            nextHash,
-            nonce
-        );
-        return nextBlock;
+
+        const newBlock = new Block(index, prevBlock.hash, timestamp, data, hash, nonce);
+        this.chain.push(newBlock);
+        return newBlock;
     }
 
-    //添加区块到区块链的方法
-    addBlock(newBlock) {
-        if (this.isValidNextBlock(newBlock, this.getLatestBlock())) {
-            this.blockchain.push(newBlock);
-        } else {
-            throw "Error: Invalid Block";
-        }
+    get() {
+        return this.chain;
     }
+// 老师截图用的：校验单个后继区块
+isValidNextBlock(nextBlock, previousBlock) {
+    if (nextBlock.index !== previousBlock.index + 1) return false;
+    if (nextBlock.previousHash !== previousBlock.hash) return false;
+    if (this.calculateHash(nextBlock.index, nextBlock.previousHash, nextBlock.timestamp, nextBlock.data, nextBlock.nonce) !== nextBlock.hash) return false;
+    if (!this.isValidHashDifficulty(nextBlock.hash)) return false;
+    return true;
+}
 
-    //验证新区块是否是前一个区块的有效后继
-    isValidNextBlock(nextBlock, previousBlock) {
-        const nextBlockHash = this.calculateHashForBlock(nextBlock);
-        if (previousBlock.index + 1 !== nextBlock.index) {
-            return false;
-        } else if (previousBlock.hash !== nextBlock.previousHash) {
-            return false;
-        } else if (nextBlockHash !== nextBlock.hash) {
-            return false;
-        } else if (!this.isValidHashDifficulty(nextBlock.hash)) {
-            return false;
-        } else {
-            return true;
-        }
-    }
-
-    //验证整条区块链是否合法且有效
     isValidChain(chain) {
-        if (JSON.stringify(chain[0]) !== JSON.stringify(Block.genesis)) {
-            return false;
-        }
-        const tempChain = [chain[0]];
         for (let i = 1; i < chain.length; i++) {
-            if (this.isValidNextBlock(chain[i], tempChain[i - 1])) {
-                tempChain.push(chain[i]);
-            } else {
-                return false;
-            }
+            const curr = chain[i];
+            const prev = chain[i - 1];
+            if (curr.previousHash !== prev.hash) return false;
+            if (curr.hash !== this.calculateHash(curr.index, curr.previousHash, curr.timestamp, curr.data, curr.nonce)) return false;
+            if (!this.isValidHashDifficulty(curr.hash)) return false;
         }
         return true;
-    }
-
-    //检查新链是否比当前链更长
-    isChainLonger(chain) {
-        return chain.length > this.blockchain.length;
-    }
-
-    //替换区块链的方法，---用于处理区块链分叉，保留最长的有效链
-    replaceChain(newChain) {
-        if (this.isValidChain(newChain) && this.isChainLonger(newChain)) {
-            this.blockchain = JSON.parse(JSON.stringify(newChain));
-        } else {
-            throw "Error: Invalid Chain";
-        }
     }
 }
 
