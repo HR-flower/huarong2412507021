@@ -8,7 +8,6 @@ const {
     RECEIVE_LATEST_BLOCKCHAIN,
     HANDSHAKE
 } = messageType;
-
 class PeerToPeer {
     // 构造函数，初始化 P2P 网络
     constructor(blockchain) {
@@ -17,7 +16,6 @@ class PeerToPeer {
         this.serverPort = null; // 存储本节点的监听端口
         this.server = null; // 存储 TCP 服务实例
     }
-
     // 启动服务器监听指定端口
     startServer(port) {
         this.serverPort = port;
@@ -27,19 +25,16 @@ class PeerToPeer {
             console.log('+++++++++++', `P2P 服务已启动，监听端口: ${port}`);
         });
     }
-
     // 发现对等节点功能（当前版本通过启动参数或 connect 指定）
     discoverPeers() {
         console.log('发现对等节点请通过启动参数 --peers 或 connect 命令指定');
     }
-
     // 连接到指定的对等节点
     connectToPeer(host, port) {
         const mubiaoDuankou = Number(port);
         if (!host || !Number.isInteger(mubiaoDuankou) || mubiaoDuankou <= 0) {
             throw new Error('无效的节点地址或端口');
         }
-
         // 避免重复连接到同一个目标节点
         const yijingLianjie = this.peers.find((peer) => {
             return peer.peerInfo?.host === host && Number(peer.peerInfo?.port) === mubiaoDuankou;
@@ -48,19 +43,16 @@ class PeerToPeer {
             console.log('----------', `节点 ${host}:${mubiaoDuankou} 已连接，跳过重复连接`);
             return;
         }
-
         const socket = net.connect(mubiaoDuankou, host, () => {
             console.log('+++++++++++', `已连接到邻居节点 ${host}:${mubiaoDuankou}`);
             socket.targetHost = host;
             socket.targetPort = mubiaoDuankou;
             this.initConnection(socket);
         });
-
         socket.on('error', (err) => {
             console.log('=-=-=-=-=-=', `连接邻居节点 ${host}:${mubiaoDuankou} 失败:`, err.message);
         });
     }
-
     // 关闭所有连接
     closeConnection() {
         this.peers.forEach((peer) => {
@@ -73,12 +65,10 @@ class PeerToPeer {
         this.peers = [];
         console.log('----------', '所有 P2P 连接已关闭');
     }
-
     // 广播最新区块
     broadcastLatest() {
         this.broadcast(Messages.sendLatestBlock(this.blockchain.latestBlock));
     }
-
     // 主动向已连接节点请求同步（本地链异常时直接请求整链，正常时请求最新块对比）
     syncWithPeers() {
         if (this.peers.length === 0) {
@@ -91,14 +81,12 @@ class PeerToPeer {
         }
         return true;
     }
-
     // 向所有连接的节点广播消息
     broadcast(message) {
         this.peers.forEach((peer) => {
             this.write(peer, message);
         });
     }
-
     // 向指定节点发送消息，使用换行符作为消息边界（NDJSON）
     write(peer, message) {
         if (!peer || peer.destroyed || !peer.writable) {
@@ -106,7 +94,6 @@ class PeerToPeer {
         }
         peer.write(JSON.stringify(message) + '\n');
     }
-
     // 初始化新连接
     initConnection(connection) {
         const yicunzai = this.peers.find((peer) => {
@@ -115,25 +102,20 @@ class PeerToPeer {
         if (yicunzai) {
             return;
         }
-
         connection.peerInfo = {
             host: connection.targetHost || connection.remoteAddress,
             port: connection.targetPort || connection.remotePort,
             connectedAt: new Date()
         };
-
         this.peers.push(connection);
         this.initMessageHandler(connection);
         this.initErrorHandler(connection);
-
         // 如果本节点已经启动了服务器，发送握手消息告知对方自己的监听端口
         if (this.serverPort) {
             this.write(connection, Messages.sendHandshake(this.serverPort));
         }
-
         this.write(connection, Messages.getLatestBlock());
     }
-
     // 初始化消息处理器（按换行符拆包）
     initMessageHandler(connection) {
         let huancun = ''; // 用于处理 TCP 粘包的数据缓冲区
@@ -142,7 +124,6 @@ class PeerToPeer {
             const xiaoxiLiebiao = huancun.split('\n');
             // 最后一项可能是不完整的半包，留回缓冲区等待下一次数据
             huancun = xiaoxiLiebiao.pop();
-
             for (let i = 0; i < xiaoxiLiebiao.length; i++) {
                 const hangWenben = xiaoxiLiebiao[i].trim();
                 if (!hangWenben) {
@@ -152,28 +133,26 @@ class PeerToPeer {
                     const xiaoxi = JSON.parse(hangWenben);
                     this.handleMessage(connection, xiaoxi);
                 } catch (err) {
-                    console.log('=-=-=-=-=-=', '解析 P2P 消息失败:', err.message);
+                    console.log('=-=-=-=-=-=', '解析 P2P 消息失败:', err.stack);
                 }
             }
         });
     }
-
     // 初始化错误与断开处理器
     initErrorHandler(connection) {
         connection.on('error', (err) => {
             console.log('=-=-=-=-=-=', `P2P 连接异常: ${err.message}`);
             this.peers = this.peers.filter((peer) => peer !== connection);
         });
-
         connection.on('close', () => {
             const jiedianBiaoshi = `${connection.peerInfo?.host || connection.remoteAddress}:${connection.peerInfo?.port || connection.remotePort}`;
             console.log('----------', `P2P 连接断开: ${jiedianBiaoshi}`);
             this.peers = this.peers.filter((peer) => peer !== connection);
         });
     }
-
     // 处理接收到的消息
     handleMessage(peer, message) {
+        if(!message) return;
         switch (message.type) {
             case HANDSHAKE:
                 if (message.data && message.data.port) {
@@ -197,30 +176,23 @@ class PeerToPeer {
                 console.log('=-=-=-=-=-=', '收到未知消息类型:', message.type);
         }
     }
-
     // 处理接收到的最新区块
     handleReceivedLatestBlock(message, peer) {
+        if(!message || !message.data) return;
         const chuanruQukuai = message.data;
         const bendiZuixinQukuai = this.blockchain.latestBlock;
         if (!chuanruQukuai) {
             return;
         }
-
         const bendiLianYouxiao = this.blockchain.isValidChain();
-
-        // 若本地链已被篡改失效，直接向邻居请求整条合法链进行纠偏恢复
         if (!bendiLianYouxiao) {
             console.log('----------', '检测到本地账本异常，向邻居请求整条区块链恢复');
             this.write(peer, Messages.getBlockchain());
             return;
         }
-
-        // 本地链有效且对方最新块与本地完全一致时直接忽略
         if (chuanruQukuai.hash === bendiZuixinQukuai.hash) {
             return;
         }
-
-        // 刚好可接在本地链末尾
         if (bendiZuixinQukuai.hash === chuanruQukuai.previousHash) {
             try {
                 this.blockchain.addBlock(chuanruQukuai);
@@ -229,21 +201,18 @@ class PeerToPeer {
             }
             return;
         }
-
-        // 对方链更长，或同高度但哈希不同（分叉或本地账本异常），请求整条链对比
         if (chuanruQukuai.index >= bendiZuixinQukuai.index) {
             console.log('----------', '检测到链状态差异，向邻居请求整条区块链同步');
             this.write(peer, Messages.getBlockchain());
         }
     }
-
     // 处理接收到的整个区块链
     handleReceivedBlockchain(message) {
+        if(!message || !message.data) return;
         const chuanruLian = message.data;
         if (!Array.isArray(chuanruLian) || chuanruLian.length === 0) {
             return;
         }
-
         try {
             const shifouTihuan = this.blockchain.replaceChain(chuanruLian);
             if (!shifouTihuan) {
@@ -254,5 +223,4 @@ class PeerToPeer {
         }
     }
 }
-
 module.exports = PeerToPeer;

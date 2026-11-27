@@ -1,7 +1,7 @@
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
+import BlockList from './components/BlockList.vue'
 </script>
 
 <template>
-  <HelloWorld />
+  <BlockList />
 </template>
