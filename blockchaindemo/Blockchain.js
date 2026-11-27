@@ -55,7 +55,29 @@ isValidNextBlock(nextBlock, previousBlock) {
     return true;
 }
 
-    isValidChain(chain) {
+    addBlock(block) {
+        if (!this.isValidNextBlock(block, this.latestBlock)) {
+            throw new Error("无效的新区块");
+        }
+        this.chain.push(block);
+        return block;
+    }
+
+    replaceChain(chain) {
+        if (chain.length <= this.chain.length) {
+            return false;
+        }
+        if (!this.isValidChain(chain)) {
+            throw new Error("无效的区块链");
+        }
+        this.chain = chain;
+        return true;
+    }
+
+    isValidChain(chain = this.chain) {
+        if (!Array.isArray(chain) || chain.length === 0) {
+            return false;
+        }
         for (let i = 1; i < chain.length; i++) {
             const curr = chain[i];
             const prev = chain[i - 1];
